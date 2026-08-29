@@ -3,12 +3,15 @@ package com.example.tools
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.BatteryManager
 import android.provider.AlarmClock
+import android.provider.MediaStore
+import android.provider.Settings
 import android.util.Log
 import com.example.model.ToolExecutionEvent
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +24,7 @@ import java.util.Locale
 
 /**
  * ToolManager executes browser actions, system queries, and device functions
- * requested by Gemini Live / Auron.
+ * requested by Gemini Live / Nova Assistant.
  */
 class ToolManager(
     private val context: Context,
@@ -37,7 +40,99 @@ class ToolManager(
     fun getToolDeclarationsJson(): JSONArray {
         val functionDeclarations = JSONArray()
 
-        // 1. openWebsite
+        // 1. openApp
+        functionDeclarations.put(JSONObject().apply {
+            put("name", "openApp")
+            put("description", "Opens any application on the device such as YouTube, Facebook, WhatsApp, Chrome, Camera, Instagram, Gallery, Settings, etc.")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("appName", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "The name of the application to open (e.g., 'youtube', 'facebook', 'whatsapp', 'camera', 'settings', 'chrome', 'instagram', 'gallery')")
+                    })
+                })
+                put("required", JSONArray().put("appName"))
+            })
+        })
+
+        // 2. makePhoneCall
+        functionDeclarations.put(JSONObject().apply {
+            put("name", "makePhoneCall")
+            put("description", "Opens the phone dialer to place a call to a given phone number or contact.")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("phoneNumber", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "The phone number to dial (e.g., '01712345678', '+123456789')")
+                    })
+                    put("contactName", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Optional name of the contact being called")
+                    })
+                })
+                put("required", JSONArray().put("phoneNumber"))
+            })
+        })
+
+        // 3. sendMessage
+        functionDeclarations.put(JSONObject().apply {
+            put("name", "sendMessage")
+            put("description", "Opens SMS or messaging with prefilled phone number and message body.")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("phoneNumber", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Recipient phone number or name")
+                    })
+                    put("message", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Text message content to write")
+                    })
+                })
+                put("required", JSONArray().put("message"))
+            })
+        })
+
+        // 4. searchYouTube
+        functionDeclarations.put(JSONObject().apply {
+            put("name", "searchYouTube")
+            put("description", "Searches YouTube for videos or music with the given query.")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("query", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "The video or music search query")
+                    })
+                })
+                put("required", JSONArray().put("query"))
+            })
+        })
+
+        // 5. downloadVideoHelper
+        functionDeclarations.put(JSONObject().apply {
+            put("name", "downloadVideoHelper")
+            put("description", "Assists the user in downloading videos from YouTube, Facebook, or Instagram by opening safe video downloader tools.")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("platform", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "The platform: 'youtube', 'facebook', 'instagram', or 'general'")
+                    })
+                    put("videoUrl", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Optional video link/URL to download")
+                    })
+                })
+                put("required", JSONArray().put("platform"))
+            })
+        })
+
+        // 6. openWebsite
         functionDeclarations.put(JSONObject().apply {
             put("name", "openWebsite")
             put("description", "Opens a website or URL in the device browser when the user asks to open a website.")
@@ -53,10 +148,10 @@ class ToolManager(
             })
         })
 
-        // 2. searchWeb
+        // 7. searchWeb
         functionDeclarations.put(JSONObject().apply {
             put("name", "searchWeb")
-            put("description", "Searches the web for a given query.")
+            put("description", "Searches Google/Web for a given query.")
             put("parameters", JSONObject().apply {
                 put("type", "OBJECT")
                 put("properties", JSONObject().apply {
@@ -69,7 +164,7 @@ class ToolManager(
             })
         })
 
-        // 3. getDeviceStatus
+        // 8. getDeviceStatus
         functionDeclarations.put(JSONObject().apply {
             put("name", "getDeviceStatus")
             put("description", "Retrieves current battery level, charging status, network connection, and current time.")
@@ -79,7 +174,7 @@ class ToolManager(
             })
         })
 
-        // 4. setTimer
+        // 9. setTimer
         functionDeclarations.put(JSONObject().apply {
             put("name", "setTimer")
             put("description", "Sets a countdown timer for a specified number of seconds.")
@@ -99,7 +194,7 @@ class ToolManager(
             })
         })
 
-        // 5. toggleFlashlight
+        // 10. toggleFlashlight
         functionDeclarations.put(JSONObject().apply {
             put("name", "toggleFlashlight")
             put("description", "Turns the device flashlight on or off.")
@@ -127,6 +222,116 @@ class ToolManager(
 
         try {
             when (name) {
+                "openApp" -> {
+                    val appName = argsJson.optString("appName", "").trim().lowercase()
+                    val opened = launchNamedApp(appName)
+                    response.put("success", opened)
+                    if (opened) {
+                        response.put("message", "Successfully opened $appName")
+                    } else {
+                        response.put("message", "Could not find $appName installed, opened web version")
+                    }
+                    onToolExecuted(
+                        ToolExecutionEvent(
+                            name = "openApp",
+                            description = "Opened app: $appName",
+                            iconName = "app"
+                        )
+                    )
+                }
+
+                "makePhoneCall" -> {
+                    val phoneNumber = argsJson.optString("phoneNumber", "").trim()
+                    val contactName = argsJson.optString("contactName", "")
+                    val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:${Uri.encode(phoneNumber)}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(dialIntent)
+                    response.put("success", true)
+                    response.put("message", "Opened dialer for $phoneNumber ${if (contactName.isNotBlank()) "($contactName)" else ""}")
+                    onToolExecuted(
+                        ToolExecutionEvent(
+                            name = "makePhoneCall",
+                            description = "Dialing $phoneNumber ${if (contactName.isNotBlank()) "($contactName)" else ""}",
+                            iconName = "phone"
+                        )
+                    )
+                }
+
+                "sendMessage" -> {
+                    val phoneNumber = argsJson.optString("phoneNumber", "").trim()
+                    val message = argsJson.optString("message", "")
+                    val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = if (phoneNumber.isNotBlank()) Uri.parse("smsto:${Uri.encode(phoneNumber)}") else Uri.parse("smsto:")
+                        putExtra("sms_body", message)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(smsIntent)
+                    response.put("success", true)
+                    response.put("message", "Opened messaging with prefilled text: '$message'")
+                    onToolExecuted(
+                        ToolExecutionEvent(
+                            name = "sendMessage",
+                            description = "Drafted SMS to $phoneNumber: '$message'",
+                            iconName = "message"
+                        )
+                    )
+                }
+
+                "searchYouTube" -> {
+                    val query = argsJson.optString("query", "").trim()
+                    val ytAppIntent = Intent(Intent.ACTION_SEARCH).apply {
+                        setPackage("com.google.android.youtube")
+                        putExtra("query", query)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    if (ytAppIntent.resolveActivity(context.packageManager) != null) {
+                        context.startActivity(ytAppIntent)
+                    } else {
+                        val webYt = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(webYt)
+                    }
+                    response.put("success", true)
+                    response.put("message", "Searching YouTube for '$query'")
+                    onToolExecuted(
+                        ToolExecutionEvent(
+                            name = "searchYouTube",
+                            description = "YouTube search: '$query'",
+                            iconName = "youtube"
+                        )
+                    )
+                }
+
+                "downloadVideoHelper" -> {
+                    val platform = argsJson.optString("platform", "general").lowercase()
+                    val videoUrl = argsJson.optString("videoUrl", "")
+                    val targetUrl = when {
+                        platform.contains("facebook") || platform.contains("fb") ->
+                            if (videoUrl.isNotBlank()) "https://snapsave.app?url=${Uri.encode(videoUrl)}" else "https://snapsave.app"
+                        platform.contains("youtube") || platform.contains("yt") ->
+                            if (videoUrl.isNotBlank()) "https://y2mate.is?url=${Uri.encode(videoUrl)}" else "https://y2mate.is"
+                        platform.contains("instagram") || platform.contains("insta") ->
+                            "https://fastdl.app"
+                        else -> "https://snapsave.app"
+                    }
+                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(browserIntent)
+                    response.put("success", true)
+                    response.put("message", "Opened video downloader helper for $platform")
+                    onToolExecuted(
+                        ToolExecutionEvent(
+                            name = "downloadVideoHelper",
+                            description = "Video Downloader Helper ($platform)",
+                            iconName = "download"
+                        )
+                    )
+                }
+
                 "openWebsite" -> {
                     var rawUrl = argsJson.optString("url", "").trim()
                     if (!rawUrl.startsWith("http://", ignoreCase = true) &&
@@ -135,7 +340,6 @@ class ToolManager(
                         rawUrl = "https://$rawUrl"
                     }
 
-                    // Validate URL scheme safety
                     val uri = Uri.parse(rawUrl)
                     if (uri.scheme?.lowercase() in listOf("http", "https")) {
                         val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -219,7 +423,7 @@ class ToolManager(
 
                 "setTimer" -> {
                     val seconds = argsJson.optInt("seconds", 60)
-                    val label = argsJson.optString("label", "Auron Timer")
+                    val label = argsJson.optString("label", "Nova Timer")
                     val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
                         putExtra(AlarmClock.EXTRA_LENGTH, seconds)
                         putExtra(AlarmClock.EXTRA_MESSAGE, label)
@@ -284,4 +488,68 @@ class ToolManager(
 
         return@withContext response
     }
+
+    /**
+     * Helper to launch named applications or fall back cleanly.
+     */
+    fun launchNamedApp(appName: String): Boolean {
+        val pm = context.packageManager
+        val cleanName = appName.lowercase().trim()
+
+        // Known common package identifiers
+        val directPackage = when {
+            cleanName.contains("youtube") || cleanName.contains("ইউটিউব") -> "com.google.android.youtube"
+            cleanName.contains("facebook") || cleanName.contains("ফেসবুক") || cleanName.contains("fb") -> "com.facebook.katana"
+            cleanName.contains("whatsapp") || cleanName.contains("হোয়াটসঅ্যাপ") -> "com.whatsapp"
+            cleanName.contains("instagram") || cleanName.contains("ইন্সটাগ্রাম") -> "com.instagram.android"
+            cleanName.contains("chrome") || cleanName.contains("ক্রোম") || cleanName.contains("browser") -> "com.android.chrome"
+            else -> null
+        }
+
+        if (directPackage != null) {
+            val launchIntent = pm.getLaunchIntentForPackage(directPackage)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launchIntent)
+                return true
+            }
+        }
+
+        // Special system intents
+        if (cleanName.contains("camera") || cleanName.contains("ক্যামেরা")) {
+            val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(cameraIntent)
+            return true
+        }
+
+        if (cleanName.contains("setting") || cleanName.contains("সেটিং")) {
+            val settingsIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(settingsIntent)
+            return true
+        }
+
+        // Fallback for YouTube or Facebook via Browser if native app not installed
+        if (cleanName.contains("youtube") || cleanName.contains("ইউটিউব")) {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            return true
+        }
+
+        if (cleanName.contains("facebook") || cleanName.contains("ফেসবুক")) {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.facebook.com")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            return true
+        }
+
+        return false
+    }
 }
+

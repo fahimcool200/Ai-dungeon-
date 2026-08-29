@@ -9,6 +9,7 @@ import android.os.Build
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.example.model.AssistantLanguage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,17 +50,33 @@ class AudioPlayer(
     // Fallback Android TTS for instant voice generation
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
+    private var currentLanguage: AssistantLanguage = AssistantLanguage.BENGALI
 
     init {
         initTts()
     }
 
+    fun setLanguage(language: AssistantLanguage) {
+        currentLanguage = language
+        if (isTtsReady && tts != null) {
+            val locale = if (language == AssistantLanguage.BENGALI) Locale("bn", "BD") else if (language == AssistantLanguage.HINDI) Locale("hi", "IN") else Locale.US
+            val result = tts?.setLanguage(locale)
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                tts?.language = Locale.US
+            }
+        }
+    }
+
     private fun initTts() {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.US
-                tts?.setPitch(1.02f) // Young, crisp male tone
-                tts?.setSpeechRate(1.05f) // Confident, brisk delivery
+                val locale = if (currentLanguage == AssistantLanguage.BENGALI) Locale("bn", "BD") else Locale.US
+                val result = tts?.setLanguage(locale)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    tts?.language = Locale.US
+                }
+                tts?.setPitch(1.0f)
+                tts?.setSpeechRate(1.0f)
 
                 // Try to find a good male English voice if available
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

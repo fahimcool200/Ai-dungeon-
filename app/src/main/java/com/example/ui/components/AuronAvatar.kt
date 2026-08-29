@@ -43,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -58,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.model.AssistantLanguage
 import com.example.model.AssistantState
 import com.example.ui.theme.Blue400
 import com.example.ui.theme.Blue500
@@ -66,25 +66,19 @@ import com.example.ui.theme.Blue700
 import com.example.ui.theme.GlassBackground
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.Indigo600
-import com.example.ui.theme.Indigo700
 import com.example.ui.theme.Indigo900
 import com.example.ui.theme.Slate100
 import com.example.ui.theme.Slate400
-import com.example.ui.theme.Slate500
-import com.example.ui.theme.Slate700
-import com.example.ui.theme.SleekElevated
 import com.example.ui.theme.SleekErrorRed
 import com.example.ui.theme.SleekGold
 import com.example.ui.theme.SleekMint
 import com.example.ui.theme.SleekSurface
 import com.example.ui.theme.SleekSurfaceVariant
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
- * AuronAvatar renders the Sleek Interface central visual centerpiece.
- * Features concentric glowing blue halo rings, subtle cyber reticle arcs,
- * backdrop blur gradient disk, and refined typography.
+ * Nova Avatar renders the Sleek Interface central visual centerpiece.
+ * Features concentric glowing holographic rings, reactive sound ripples,
+ * and high-fidelity typography.
  */
 @Composable
 fun AuronAvatar(
@@ -92,6 +86,7 @@ fun AuronAvatar(
     micAmplitude: Float,
     speakerAmplitude: Float,
     subtitle: String,
+    language: AssistantLanguage = AssistantLanguage.BENGALI,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "avatar_motion")
@@ -117,10 +112,10 @@ fun AuronAvatar(
     )
 
     val ambientPulse by infiniteTransition.animateFloat(
-        initialValue = 0.96f,
-        targetValue = 1.04f,
+        initialValue = 0.97f,
+        targetValue = 1.03f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = FastOutSlowInEasing),
+            animation = tween(2400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "ambient_pulse"
@@ -128,7 +123,7 @@ fun AuronAvatar(
 
     val activeAccent by animateColorAsState(
         targetValue = when (state) {
-            AssistantState.DISCONNECTED -> Blue400.copy(alpha = 0.5f)
+            AssistantState.DISCONNECTED -> Blue400.copy(alpha = 0.6f)
             AssistantState.CONNECTING -> SleekGold
             AssistantState.LISTENING -> Blue400
             AssistantState.THINKING -> Indigo600
@@ -140,7 +135,7 @@ fun AuronAvatar(
     )
 
     val reactiveScale = when (state) {
-        AssistantState.SPEAKING -> 1f + (speakerAmplitude * 0.18f)
+        AssistantState.SPEAKING -> 1f + (speakerAmplitude * 0.16f)
         AssistantState.LISTENING -> 1f + (micAmplitude * 0.14f)
         AssistantState.THINKING -> ambientPulse * 1.02f
         AssistantState.CONNECTING -> ambientPulse * 1.01f
@@ -157,14 +152,13 @@ fun AuronAvatar(
         // Sleek Luminous Reticle and Avatar Disc
         Box(
             modifier = Modifier
-                .size(260.dp)
+                .size(240.dp)
                 .testTag("auron_avatar_center"),
             contentAlignment = Alignment.Center
         ) {
-            // Background soft ambient glow (w-[300px] h-[300px] bg-blue-600/10 blur)
             Canvas(
                 modifier = Modifier
-                    .size(280.dp)
+                    .size(260.dp)
                     .scale(reactiveScale)
             ) {
                 val center = Offset(size.width / 2f, size.height / 2f)
@@ -174,7 +168,7 @@ fun AuronAvatar(
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            activeAccent.copy(alpha = 0.25f),
+                            activeAccent.copy(alpha = 0.28f),
                             Blue600.copy(alpha = 0.08f),
                             Color.Transparent
                         ),
@@ -183,14 +177,14 @@ fun AuronAvatar(
                     )
                 )
 
-                // Concentric Ring 1: Outer subtle ring (scale 125, border-blue-400/10)
+                // Concentric Ring 1
                 drawCircle(
                     color = Blue400.copy(alpha = 0.12f),
                     radius = radius * 0.98f,
                     style = Stroke(width = 1.dp.toPx())
                 )
 
-                // Concentric Ring 2: Mid ring (scale 110, border-blue-500/20)
+                // Concentric Ring 2
                 drawCircle(
                     color = Blue500.copy(alpha = 0.22f),
                     radius = radius * 0.88f,
@@ -237,34 +231,32 @@ fun AuronAvatar(
             // Sleek Gradient Core Disc
             Box(
                 modifier = Modifier
-                    .size(190.dp)
+                    .size(176.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                Blue700.copy(alpha = 0.35f),
-                                Indigo900.copy(alpha = 0.25f),
+                                Blue700.copy(alpha = 0.4f),
+                                Indigo900.copy(alpha = 0.3f),
                                 Color.Transparent
                             )
                         )
                     )
                     .border(1.dp, GlassBorder, CircleShape)
-                    .padding(8.dp),
+                    .padding(6.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Central Slate-900 Disk with Radial Blue Light
                 Box(
                     modifier = Modifier
-                        .size(174.dp)
+                        .size(164.dp)
                         .clip(CircleShape)
                         .background(SleekSurfaceVariant)
                         .border(1.dp, GlassBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Avatar Portrait
                     Image(
-                        painter = painterResource(id = R.drawable.auron_avatar),
-                        contentDescription = "Auron AI Avatar",
+                        painter = painterResource(id = R.drawable.nova_avatar),
+                        contentDescription = "Nova AI Avatar",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -276,9 +268,9 @@ fun AuronAvatar(
                             .background(
                                 Brush.radialGradient(
                                     colors = listOf(
-                                        activeAccent.copy(alpha = 0.25f),
+                                        activeAccent.copy(alpha = 0.18f),
                                         Color.Transparent,
-                                        SleekSurface.copy(alpha = 0.6f)
+                                        SleekSurface.copy(alpha = 0.5f)
                                     )
                                 )
                             )
@@ -293,7 +285,7 @@ fun AuronAvatar(
                     .clip(CircleShape)
                     .background(SleekSurface.copy(alpha = 0.95f))
                     .border(1.dp, GlassBorder, CircleShape)
-                    .padding(horizontal = 12.dp, vertical = 5.dp)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -314,17 +306,17 @@ fun AuronAvatar(
                         modifier = Modifier.size(13.dp)
                     )
                     Text(
-                        text = state.label.uppercase(),
+                        text = state.getLabel(language).uppercase(),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = Slate100,
-                        letterSpacing = 1.sp
+                        letterSpacing = 0.8.sp
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
         // Sleek Subtitle / Voice Caption
         Box(
@@ -334,7 +326,7 @@ fun AuronAvatar(
                 .clip(RoundedCornerShape(20.dp))
                 .background(GlassBackground)
                 .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -342,33 +334,32 @@ fun AuronAvatar(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = if (subtitle.isNotBlank()) "\"$subtitle\"" else "\"Alright, I'm listening.\"",
+                    text = if (subtitle.isNotBlank()) subtitle else if (language == AssistantLanguage.BENGALI) "\"নোভা শুনছে... বলুন\"" else "\"Alright, I'm listening.\"",
                     color = Slate100,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = (-0.3).sp,
-                    lineHeight = 26.sp,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Normal,
+                    letterSpacing = (-0.2).sp,
+                    lineHeight = 24.sp,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = when (state) {
-                        AssistantState.DISCONNECTED -> "Auron is in standby"
-                        AssistantState.LISTENING -> "Auron is listening"
-                        AssistantState.THINKING -> "Auron is processing"
-                        AssistantState.SPEAKING -> "Auron is speaking"
-                        AssistantState.CONNECTING -> "Auron is connecting"
-                        AssistantState.ERROR -> "Connection offline"
+                        AssistantState.DISCONNECTED -> if (language == AssistantLanguage.BENGALI) "নোভা প্রস্তুত (হ্যান্ডস-ফ্রি)" else "NOVA STANDBY (HANDS-FREE)"
+                        AssistantState.LISTENING -> if (language == AssistantLanguage.BENGALI) "নোভা শুনছে" else "NOVA IS LISTENING"
+                        AssistantState.THINKING -> if (language == AssistantLanguage.BENGALI) "কমান্ড প্রসেস হচ্ছে" else "PROCESSING ACTION"
+                        AssistantState.SPEAKING -> if (language == AssistantLanguage.BENGALI) "নোভা উত্তর দিচ্ছে" else "NOVA IS SPEAKING"
+                        AssistantState.CONNECTING -> if (language == AssistantLanguage.BENGALI) "সার্ভারে যুক্ত হচ্ছে" else "CONNECTING"
+                        AssistantState.ERROR -> if (language == AssistantLanguage.BENGALI) "অফলাইন মোড কার্যকর" else "OFFLINE ACTIVE"
                     }.uppercase(),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     color = Slate400,
-                    letterSpacing = 1.2.sp
+                    letterSpacing = 1.sp
                 )
             }
         }
     }
 }
-

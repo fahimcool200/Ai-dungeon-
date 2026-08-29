@@ -41,13 +41,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.model.AssistantLanguage
 import com.example.model.AssistantState
 import com.example.ui.components.AuronAvatar
 import com.example.ui.components.HUDQuickActions
@@ -61,7 +61,6 @@ import com.example.ui.theme.Slate400
 import com.example.ui.theme.SleekBg
 import com.example.ui.theme.SleekErrorRed
 import com.example.ui.theme.SleekHeaderTop
-import com.example.ui.theme.SleekSurface
 
 @Composable
 fun AuronMainScreen(
@@ -71,6 +70,7 @@ fun AuronMainScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val isBengali = uiState.config.language == AssistantLanguage.BENGALI
 
     // Microphone Permission Launcher
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -122,7 +122,12 @@ fun AuronMainScreen(
                 // Top Navigation Bar
                 TopBar(
                     state = uiState.state,
+                    language = uiState.config.language,
                     sessionDurationSeconds = uiState.sessionDurationSeconds,
+                    onLanguageToggle = {
+                        val nextLang = if (isBengali) AssistantLanguage.ENGLISH else AssistantLanguage.BENGALI
+                        viewModel.toggleLanguage(nextLang)
+                    },
                     onSettingsClick = { viewModel.toggleDrawer(true) }
                 )
 
@@ -132,7 +137,7 @@ fun AuronMainScreen(
                     onDismiss = { viewModel.dismissToolBanner() }
                 )
 
-                // Central Character Area (Auron Avatar & Real-Time HUD Subtitle)
+                // Central Character Area (Nova Avatar & Real-Time HUD Subtitle)
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -143,7 +148,8 @@ fun AuronMainScreen(
                         state = uiState.state,
                         micAmplitude = uiState.micVolume,
                         speakerAmplitude = uiState.speakerVolume,
-                        subtitle = uiState.subtitleText
+                        subtitle = uiState.subtitleText,
+                        language = uiState.config.language
                     )
                 }
 
@@ -179,7 +185,7 @@ fun AuronMainScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = uiState.errorMessage ?: "Connection error. Tap to retry.",
+                                    text = uiState.errorMessage ?: if (isBengali) "কানেকশন সমস্যা হয়েছে। পুনরায় চেষ্টা করুন।" else "Connection error. Tap to retry.",
                                     fontSize = 12.sp,
                                     color = Slate100
                                 )
@@ -189,7 +195,7 @@ fun AuronMainScreen(
                                 colors = ButtonDefaults.buttonColors(containerColor = SleekErrorRed),
                                 modifier = Modifier.height(32.dp)
                             ) {
-                                Text("Retry", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(if (isBengali) "পুনরায় চেষ্টা" else "Retry", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -201,8 +207,9 @@ fun AuronMainScreen(
                     bars = uiState.visualizerBars
                 )
 
-                // Quick Prompt HUD Suggestions
+                // Quick Action HUD Automation Pills
                 HUDQuickActions(
+                    language = uiState.config.language,
                     onPromptSelected = { prompt ->
                         viewModel.sendQuickVoicePrompt(prompt)
                     }
@@ -213,7 +220,7 @@ fun AuronMainScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 20.dp, top = 8.dp)
+                        .padding(bottom = 16.dp, top = 6.dp)
                 ) {
                     MicButton(
                         state = uiState.state,
@@ -229,16 +236,16 @@ fun AuronMainScreen(
                         }
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = when (uiState.state) {
-                            AssistantState.DISCONNECTED -> "Tap microphone to talk with Auron"
-                            AssistantState.SPEAKING -> "Tap button or speak to interrupt Auron"
-                            AssistantState.LISTENING -> "Auron is listening to you..."
-                            AssistantState.THINKING -> "Auron is thinking..."
-                            AssistantState.CONNECTING -> "Connecting to Gemini Live..."
-                            AssistantState.ERROR -> "Connection error. Tap to reconnect."
+                            AssistantState.DISCONNECTED -> if (isBengali) "\"Hello Nova\" বলুন অথবা কথা বলতে মাইকে চাপ দিন" else "Say \"Hello Nova\" or tap microphone to speak"
+                            AssistantState.SPEAKING -> if (isBengali) "কথা থামানোর জন্য বোতামে ট্যাপ করুন বা কথা বলুন" else "Tap button or speak to interrupt Nova"
+                            AssistantState.LISTENING -> if (isBengali) "নোভা আপনার কথা শুনছে..." else "Nova is listening to you..."
+                            AssistantState.THINKING -> if (isBengali) "নোভা কাজ সম্পন্ন করছে..." else "Nova is processing..."
+                            AssistantState.CONNECTING -> if (isBengali) "সার্ভারের সাথে কানেক্ট হচ্ছে..." else "Connecting to live voice engine..."
+                            AssistantState.ERROR -> if (isBengali) "অফলাইন মোড সক্রিয় রয়েছে" else "Offline mode active"
                         },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
@@ -260,6 +267,12 @@ fun AuronMainScreen(
                     onRequestMicPermission = {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
+                    onAddCustomRule = { rule ->
+                        viewModel.addCustomTrainingRule(rule)
+                    },
+                    onRemoveCustomRule = { id ->
+                        viewModel.removeCustomTrainingRule(id)
+                    },
                     onDismiss = {
                         viewModel.toggleDrawer(false)
                     }
@@ -268,4 +281,3 @@ fun AuronMainScreen(
         }
     }
 }
-

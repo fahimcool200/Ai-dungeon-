@@ -1,6 +1,6 @@
 {
-  "name": "Auron AI",
-  "description": "Futuristic real-time voice AI assistant with expressive male persona, live audio pipeline, waveform visualizer, and smart tools.",
+  "name": "Nova AI",
+  "description": "Smart hands-free voice AI assistant with Hello Nova wake word, multi-language support (বাংলা & English), offline intelligence, and device automation.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

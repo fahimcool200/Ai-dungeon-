@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
@@ -36,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.AssistantLanguage
 import com.example.model.AssistantState
 import com.example.ui.theme.Blue400
 import com.example.ui.theme.Blue500
@@ -44,6 +47,7 @@ import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.Slate100
 import com.example.ui.theme.Slate400
 import com.example.ui.theme.Slate500
+import com.example.ui.theme.SleekElevated
 import com.example.ui.theme.SleekErrorRed
 import com.example.ui.theme.SleekGold
 import com.example.ui.theme.SleekHeaderTop
@@ -52,10 +56,14 @@ import com.example.ui.theme.SleekMint
 @Composable
 fun TopBar(
     state: AssistantState,
+    language: AssistantLanguage,
     sessionDurationSeconds: Long,
+    onLanguageToggle: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isBengali = language == AssistantLanguage.BENGALI
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -67,43 +75,77 @@ fun TopBar(
                     )
                 )
             )
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Sleek Branding
+            // Left: Nova Branding
             Column {
                 Text(
-                    text = "NEURAL SYSTEM V3.1",
+                    text = if (isBengali) "ভয়েস অটোমেশন এআই" else "HANDS-FREE AI AGENT",
                     fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.2.sp,
-                    color = Blue400.copy(alpha = 0.8f)
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                    color = Blue400.copy(alpha = 0.9f)
                 )
                 Spacer(modifier = Modifier.size(2.dp))
-                Text(
-                    text = "AURON AI",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.3).sp,
-                    color = Slate100
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "NOVA AI",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.2).sp,
+                        color = Slate100
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Blue500.copy(alpha = 0.2f))
+                            .border(1.dp, Blue400.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = if (isBengali) "বাংলা" else "ENG",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Blue400
+                        )
+                    }
+                }
             }
 
-            // Right: Status Pill & Settings Button
+            // Right: Status Pill, Language Switch Pill, Settings Button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatusPill(state = state, durationSeconds = sessionDurationSeconds)
+                // Language quick toggle pill
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(GlassBackground)
+                        .border(1.dp, GlassBorder, CircleShape)
+                        .clickable { onLanguageToggle() }
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = if (isBengali) "EN" else "বাং",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Blue400
+                    )
+                }
+
+                StatusPill(state = state, language = language, durationSeconds = sessionDurationSeconds)
 
                 IconButton(
                     onClick = onSettingsClick,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(GlassBackground)
                         .border(1.dp, GlassBorder, CircleShape)
@@ -111,7 +153,7 @@ fun TopBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Tune,
-                        contentDescription = "Auron Settings",
+                        contentDescription = "Nova Settings",
                         tint = Slate400,
                         modifier = Modifier.size(18.dp)
                     )
@@ -124,8 +166,10 @@ fun TopBar(
 @Composable
 private fun StatusPill(
     state: AssistantState,
+    language: AssistantLanguage,
     durationSeconds: Long
 ) {
+    val isBengali = language == AssistantLanguage.BENGALI
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 0.85f,
@@ -138,12 +182,12 @@ private fun StatusPill(
     )
 
     val (statusColor, statusText) = when (state) {
-        AssistantState.DISCONNECTED -> Pair(Slate500, "STANDBY")
-        AssistantState.CONNECTING -> Pair(SleekGold, "CONNECTING")
-        AssistantState.LISTENING -> Pair(Blue400, "LIVE SESSION")
-        AssistantState.THINKING -> Pair(Blue500, "PROCESSING")
-        AssistantState.SPEAKING -> Pair(SleekMint, "SPEAKING")
-        AssistantState.ERROR -> Pair(SleekErrorRed, "OFFLINE")
+        AssistantState.DISCONNECTED -> Pair(Slate500, if (isBengali) "প্রস্তুত" else "STANDBY")
+        AssistantState.CONNECTING -> Pair(SleekGold, if (isBengali) "যুক্ত হচ্ছে" else "CONNECTING")
+        AssistantState.LISTENING -> Pair(Blue400, if (isBengali) "শুনছে" else "LIVE")
+        AssistantState.THINKING -> Pair(Blue500, if (isBengali) "প্রসেসিং" else "PROCESSING")
+        AssistantState.SPEAKING -> Pair(SleekMint, if (isBengali) "বলছে" else "SPEAKING")
+        AssistantState.ERROR -> Pair(SleekErrorRed, if (isBengali) "অফলাইন" else "OFFLINE")
     }
 
     val animatedColor by animateColorAsState(targetValue = statusColor, label = "status_color")
@@ -159,11 +203,11 @@ private fun StatusPill(
             .clip(CircleShape)
             .background(GlassBackground)
             .border(1.dp, GlassBorder, CircleShape)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(
                 modifier = Modifier.size(8.dp),
@@ -191,9 +235,8 @@ private fun StatusPill(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = Slate100,
-                letterSpacing = 0.8.sp
+                letterSpacing = 0.5.sp
             )
         }
     }
 }
-

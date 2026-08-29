@@ -6,9 +6,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.audio.AudioPlayer
 import com.example.audio.AudioStreamer
+import com.example.audio.OfflineCommandProcessor
+import com.example.audio.WakeWordDetector
+import com.example.model.AppThemeMode
+import com.example.model.AssistantLanguage
 import com.example.model.AssistantState
 import com.example.model.AuronConfig
 import com.example.model.AuronLog
+import com.example.model.CustomTrainingRule
 import com.example.model.LogType
 import com.example.model.ToolExecutionEvent
 import com.example.service.GeminiLiveSession
@@ -29,8 +34,8 @@ data class AuronUiState(
     val micVolume: Float = 0f,
     val speakerVolume: Float = 0f,
     val visualizerBars: List<Float> = List(24) { 0.05f },
-    val statusText: String = "Tap to talk",
-    val subtitleText: String = "Auron is ready. Tap the microphone to start real-time voice.",
+    val statusText: String = "কথা বলতে ট্যাপ করুন",
+    val subtitleText: String = "নোভা প্রস্তুত। \"Hello Nova\" বলুন অথবা কথা বলতে মাইকে চাপ দিন।",
     val errorMessage: String? = null,
     val latencyMs: Long = 0L,
     val config: AuronConfig = AuronConfig(),
@@ -38,7 +43,8 @@ data class AuronUiState(
     val recentLogs: List<AuronLog> = emptyList(),
     val latestToolEvent: ToolExecutionEvent? = null,
     val sessionDurationSeconds: Long = 0L,
-    val isDrawerOpen: Boolean = false
+    val isDrawerOpen: Boolean = false,
+    val isWakeWordListening: Boolean = true
 )
 
 class AuronViewModel(application: Application) : AndroidViewModel(application) {
@@ -52,7 +58,7 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
                 latestToolEvent = event,
                 recentLogs = listOf(
                     AuronLog(
-                        title = "Tool Executed: ${event.name}",
+                        title = "Tool: ${event.name}",
                         detail = event.description,
                         type = LogType.TOOL_CALL
                     )
@@ -61,10 +67,12 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val offlineProcessor = OfflineCommandProcessor(application, toolManager)
+
     private val audioPlayer = AudioPlayer(application, viewModelScope) {
         // When playback finishes
         if (_uiState.value.state == AssistantState.SPEAKING) {
-            _uiState.update { it.copy(state = AssistantState.LISTENING, statusText = "Listening") }
+            _uiState.update { it.copy(state = AssistantState.LISTENING, statusText = it.state.getLabel(it.config.language)) }
         }
     }
 
@@ -77,7 +85,7 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update {
                 it.copy(
                     state = newState,
-                    statusText = newState.label
+                    statusText = newState.getLabel(it.config.language)
                 )
             }
         },
@@ -99,9 +107,21 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
             liveSession.sendAudioChunk(chunk)
         },
         onSpeechDetected = {
-            // Natural voice interruption: user started speaking while Auron was talking
             if (_uiState.value.state == AssistantState.SPEAKING) {
                 interrupt()
+            }
+        }
+    )
+
+    // Continuous Hands-Free "Hello Nova" Wake Word Detector
+    private val wakeWordDetector = WakeWordDetector(
+        context = application,
+        onWakeWordDetected = { command ->
+            onWakeWordTriggered(command)
+        },
+        onVolumeChanged = { rms ->
+            if (_uiState.value.state == AssistantState.DISCONNECTED && _uiState.value.isWakeWordListening) {
+                _uiState.update { it.copy(micVolume = (rms / 10f).coerceIn(0f, 1f)) }
             }
         }
     )
@@ -110,6 +130,8 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
     private var sessionTimerJob: Job? = null
 
     init {
+        audioPlayer.setLanguage(_uiState.value.config.language)
+        wakeWordDetector.setLanguage(_uiState.value.config.language)
         startVisualizerLoop()
         observeAudioAmplitudes()
     }
@@ -117,7 +139,9 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeAudioAmplitudes() {
         viewModelScope.launch {
             audioStreamer.micAmplitude.collect { amp ->
-                _uiState.update { it.copy(micVolume = amp) }
+                if (_uiState.value.state != AssistantState.DISCONNECTED) {
+                    _uiState.update { it.copy(micVolume = amp) }
+                }
             }
         }
         viewModelScope.launch {
@@ -140,7 +164,7 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
                     AssistantState.LISTENING -> micVol.coerceAtLeast(0.08f)
                     AssistantState.THINKING -> 0.4f
                     AssistantState.CONNECTING -> 0.25f
-                    else -> 0.05f
+                    else -> if (_uiState.value.isWakeWordListening) 0.08f else 0.03f
                 }
 
                 val bars = List(24) { i ->
@@ -153,13 +177,57 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
 
                 phase += 0.18f
                 _uiState.update { it.copy(visualizerBars = bars) }
-                delay(33) // ~30 fps visualizer animation
+                delay(33)
             }
         }
     }
 
     fun setMicPermissionGranted(granted: Boolean) {
         _uiState.update { it.copy(hasMicPermission = granted) }
+        if (granted && _uiState.value.config.wakeWordEnabled) {
+            wakeWordDetector.start()
+        }
+    }
+
+    private fun onWakeWordTriggered(command: String) {
+        viewModelScope.launch(Dispatchers.Main) {
+            val isBengali = _uiState.value.config.language == AssistantLanguage.BENGALI
+            if (command.isNotBlank()) {
+                val prompt = command.trim()
+                _uiState.update {
+                    it.copy(
+                        subtitleText = "\"$prompt\"",
+                        state = AssistantState.THINKING
+                    )
+                }
+                // Try offline execution first for fast device actions
+                val offlineResult = offlineProcessor.processCommand(prompt, _uiState.value.config)
+                if (offlineResult.handled) {
+                    _uiState.update {
+                        it.copy(
+                            subtitleText = offlineResult.responseText,
+                            state = AssistantState.SPEAKING
+                        )
+                    }
+                    audioPlayer.speakText(offlineResult.responseText)
+                } else {
+                    sendQuickVoicePrompt(prompt)
+                }
+            } else {
+                // Just wake word spoken: greet and start listening
+                val greeting = if (isBengali) "হ্যাঁ বলুন, নোভা শুনছে।" else "Yes, I'm listening."
+                _uiState.update {
+                    it.copy(
+                        subtitleText = "\"$greeting\"",
+                        state = AssistantState.SPEAKING
+                    )
+                }
+                audioPlayer.speakText(greeting)
+                if (_uiState.value.hasMicPermission) {
+                    startSession()
+                }
+            }
+        }
     }
 
     fun toggleSession() {
@@ -195,9 +263,12 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(
                 state = AssistantState.DISCONNECTED,
-                statusText = "Tap to talk",
+                statusText = it.state.getLabel(it.config.language),
                 sessionDurationSeconds = 0L
             )
+        }
+        if (_uiState.value.config.wakeWordEnabled && _uiState.value.hasMicPermission) {
+            wakeWordDetector.start()
         }
     }
 
@@ -207,7 +278,7 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(
                 state = AssistantState.LISTENING,
-                statusText = "Listening",
+                statusText = it.state.getLabel(it.config.language),
                 recentLogs = listOf(
                     AuronLog(
                         title = "Interrupted",
@@ -220,27 +291,67 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendQuickVoicePrompt(prompt: String) {
-        if (_uiState.value.state == AssistantState.DISCONNECTED) {
-            startSession()
-        }
-        _uiState.update {
-            it.copy(
-                subtitleText = "\"$prompt\"",
-                recentLogs = listOf(
-                    AuronLog(
-                        title = "Voice Input",
-                        detail = prompt,
-                        type = LogType.USER_VOICE
+        viewModelScope.launch(Dispatchers.Main) {
+            _uiState.update {
+                it.copy(
+                    subtitleText = "\"$prompt\"",
+                    recentLogs = listOf(
+                        AuronLog(
+                            title = "Voice Input",
+                            detail = prompt,
+                            type = LogType.USER_VOICE
+                        )
+                    ) + it.recentLogs.take(20)
+                )
+            }
+
+            // Check if device is offline or handle immediately locally
+            val offlineRes = offlineProcessor.processCommand(prompt, _uiState.value.config)
+            if (offlineRes.handled) {
+                _uiState.update {
+                    it.copy(
+                        subtitleText = offlineRes.responseText,
+                        state = AssistantState.SPEAKING
                     )
-                ) + it.recentLogs.take(20)
-            )
+                }
+                audioPlayer.speakText(offlineRes.responseText)
+            } else {
+                if (_uiState.value.state == AssistantState.DISCONNECTED) {
+                    startSession()
+                }
+                liveSession.processVoiceQuery(prompt)
+            }
         }
-        liveSession.processVoiceQuery(prompt)
     }
 
     fun updateConfig(newConfig: AuronConfig) {
         _uiState.update { it.copy(config = newConfig) }
         liveSession.updateConfig(newConfig)
+        audioPlayer.setLanguage(newConfig.language)
+        wakeWordDetector.setLanguage(newConfig.language)
+        wakeWordDetector.setEnabled(newConfig.wakeWordEnabled)
+    }
+
+    fun toggleLanguage(language: AssistantLanguage) {
+        val updated = _uiState.value.config.copy(language = language)
+        updateConfig(updated)
+    }
+
+    fun toggleTheme(themeMode: AppThemeMode) {
+        val updated = _uiState.value.config.copy(themeMode = themeMode)
+        updateConfig(updated)
+    }
+
+    fun addCustomTrainingRule(rule: CustomTrainingRule) {
+        val updatedList = _uiState.value.config.customRules + rule
+        val updatedConfig = _uiState.value.config.copy(customRules = updatedList)
+        updateConfig(updatedConfig)
+    }
+
+    fun removeCustomTrainingRule(id: String) {
+        val updatedList = _uiState.value.config.customRules.filter { it.id != id }
+        val updatedConfig = _uiState.value.config.copy(customRules = updatedList)
+        updateConfig(updatedConfig)
     }
 
     fun toggleDrawer(isOpen: Boolean) {
@@ -269,6 +380,7 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        wakeWordDetector.stop()
         audioStreamer.stopStreaming()
         audioPlayer.release()
         liveSession.disconnect()
@@ -276,3 +388,4 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
         sessionTimerJob?.cancel()
     }
 }
+

@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.OpenInBrowser
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FlashlightOn
+import androidx.compose.material.icons.filled.Message
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.AssistantLanguage
 import com.example.ui.theme.Blue400
 import com.example.ui.theme.GlassBackground
 import com.example.ui.theme.GlassBorder
@@ -43,17 +46,35 @@ data class QuickAction(
 
 @Composable
 fun HUDQuickActions(
+    language: AssistantLanguage = AssistantLanguage.BENGALI,
     onPromptSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val quickActions = listOf(
-        QuickAction("Open YouTube", Icons.Default.OpenInBrowser, "Open YouTube"),
-        QuickAction("Device Status", Icons.Default.Devices, "What is my battery level and device status?"),
-        QuickAction("Tell Me a Joke", Icons.Default.AutoAwesome, "Tell me a witty joke!"),
-        QuickAction("Who are you?", Icons.Default.Lightbulb, "Who are you and what makes you special?"),
-        QuickAction("Set 5m Timer", Icons.Default.Alarm, "Set a timer for 5 minutes"),
-        QuickAction("Search Trends", Icons.Default.Search, "Search Google for top tech breakthroughs")
-    )
+    val isBengali = language == AssistantLanguage.BENGALI
+
+    val quickActions = if (isBengali) {
+        listOf(
+            QuickAction("ইউটিউব চালান", Icons.Default.PlayCircle, "ইউটিউব ওপেন কর"),
+            QuickAction("ফেসবুক ওপেন", Icons.Default.Public, "ফেসবুক ওপেন কর"),
+            QuickAction("ভিডিও ডাউনলোড", Icons.Default.Download, "ভিডিও ডাউনলোড হেল্পার"),
+            QuickAction("ফোন দিন", Icons.Default.Call, "ফোন ডায়াল কর"),
+            QuickAction("মেসেজ লিখো", Icons.Default.Message, "মেসেজ লিখো"),
+            QuickAction("ব্যাটারি চার্জ কত?", Icons.Default.BatteryChargingFull, "ব্যাটারি চার্জ কত?"),
+            QuickAction("ফ্ল্যাশলাইট", Icons.Default.FlashlightOn, "ফ্ল্যাশলাইট জ্বালাও"),
+            QuickAction("কে তুমি?", Icons.Default.SmartToy, "কে তুমি এবং তুমি কি কি করতে পারো?")
+        )
+    } else {
+        listOf(
+            QuickAction("Open YouTube", Icons.Default.PlayCircle, "Open YouTube"),
+            QuickAction("Open Facebook", Icons.Default.Public, "Open Facebook"),
+            QuickAction("Download Video", Icons.Default.Download, "Download video helper"),
+            QuickAction("Make a Call", Icons.Default.Call, "Make a phone call"),
+            QuickAction("Send SMS", Icons.Default.Message, "Send a message"),
+            QuickAction("Battery Status", Icons.Default.BatteryChargingFull, "Check battery status"),
+            QuickAction("Flashlight", Icons.Default.FlashlightOn, "Toggle flashlight"),
+            QuickAction("Who are you?", Icons.Default.SmartToy, "Who are you and what can you do?")
+        )
+    }
 
     Row(
         modifier = modifier
@@ -80,7 +101,7 @@ fun HUDQuickActions(
                         imageVector = action.icon,
                         contentDescription = null,
                         tint = Blue400,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = action.label,
@@ -93,4 +114,3 @@ fun HUDQuickActions(
         }
     }
 }
-
