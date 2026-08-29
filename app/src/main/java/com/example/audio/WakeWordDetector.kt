@@ -2,6 +2,7 @@ package com.example.audio
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -13,12 +14,13 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.example.model.AssistantLanguage
 import java.util.Locale
 
 /**
- * WakeWordDetector provides continuous hands-free keyword detection
- * for "Hello Nova", "Hey Nova", "হ্যালো নোভা", and "নোভা".
+ * WakeWordDetector provides continuous, robust hands-free keyword detection
+ * for "Hello Nova", "Hey Nova", "হ্যালো নোভা", "নোভা", etc.
  */
 class WakeWordDetector(
     private val context: Context,
@@ -27,16 +29,20 @@ class WakeWordDetector(
 ) {
     companion object {
         private const val TAG = "WakeWordDetector"
-        private val WAKE_WORDS = listOf(
+        private val WAKE_PATTERNS = listOf(
             "hello nova",
             "hey nova",
             "ok nova",
+            "hi nova",
             "nova",
             "হ্যালো নোভা",
             "হাই নোভা",
             "নোভা",
             "শোন নোভা",
-            "নভা"
+            "নোবা",
+            "নভা",
+            "halo nova",
+            "helo nova"
         )
     }
 
@@ -44,13 +50,19 @@ class WakeWordDetector(
     private var isListening = false
     private var isEnabled = true
     private var currentLanguage: AssistantLanguage = AssistantLanguage.BENGALI
+    private var sensitivity: Float = 0.85f
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var retryCount = 0
 
     fun setLanguage(language: AssistantLanguage) {
         currentLanguage = language
         if (isListening) {
             restartListening()
         }
+    }
+
+    fun setSensitivity(value: Float) {
+        sensitivity = value.coerceIn(0.1f, 1.0f)
     }
 
     fun setEnabled(enabled: Boolean) {
@@ -63,7 +75,15 @@ class WakeWordDetector(
     }
 
     fun start() {
-        if (!isEnabled || isListening) return
+        if (!isEnabled) return
+        
+        // Permission check
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) 
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Cannot start WakeWordDetector: RECORD_AUDIO permission not granted")
+            return
+        }
+
         mainHandler.post {
             try {
                 if (!SpeechRecognizer.isRecognitionAvailable(context)) {
@@ -74,22 +94,28 @@ class WakeWordDetector(
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
                     setRecognitionListener(createListener())
                 }
+
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                    val langTag = if (currentLanguage == AssistantLanguage.BENGALI) "bn-BD" else "en-US"
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, langTag)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, langTag)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                    
+                    val primaryLang = if (currentLanguage == AssistantLanguage.BENGALI) "bn-BD" else "en-US"
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, primaryLang)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, primaryLang)
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("en-US", "bn-BD", "bn-IN"))
                 }
+                
                 speechRecognizer?.startListening(intent)
                 isListening = true
-                Log.d(TAG, "WakeWordDetector started listening in $currentLanguage")
+                retryCount = 0
+                Log.d(TAG, "WakeWordDetector actively listening for 'Hello Nova' / 'হ্যালো নোভা'...")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start wake word detector: ${e.message}", e)
                 isListening = false
-                scheduleRestart(2000)
+                scheduleRestart(1500)
             }
         }
     }
@@ -111,17 +137,19 @@ class WakeWordDetector(
             Log.w(TAG, "Error destroying speech recognizer: ${e.message}")
         } finally {
             speechRecognizer = null
+            isListening = false
         }
     }
 
     private fun restartListening() {
         stop()
         if (isEnabled) {
-            scheduleRestart(300)
+            scheduleRestart(200)
         }
     }
 
     private fun scheduleRestart(delayMs: Long) {
+        mainHandler.removeCallbacksAndMessages(null)
         mainHandler.postDelayed({
             if (isEnabled) {
                 start()
@@ -134,16 +162,16 @@ class WakeWordDetector(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
                 vibratorManager?.defaultVibrator?.vibrate(
-                    VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE)
+                    VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
                 )
             } else {
                 @Suppress("DEPRECATION")
                 val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator?.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+                    vibrator?.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
                 } else {
                     @Suppress("DEPRECATION")
-                    vibrator?.vibrate(80)
+                    vibrator?.vibrate(100)
                 }
             }
         } catch (e: Exception) {
@@ -153,12 +181,14 @@ class WakeWordDetector(
 
     private fun checkForWakeWord(text: String): Boolean {
         val lower = text.lowercase(Locale.ROOT).trim()
-        for (wake in WAKE_WORDS) {
+        if (lower.isEmpty()) return false
+
+        for (wake in WAKE_PATTERNS) {
             if (lower.contains(wake)) {
                 triggerHapticFeedback()
-                // Extract whatever came after the wake word as command
                 val command = lower.substringAfter(wake).trim()
-                Log.d(TAG, "Wake word matched! Trigger: '$wake', Command: '$command'")
+                Log.d(TAG, "Wake word matched! Pattern: '$wake', Trailing command: '$command'")
+                destroyRecognizer()
                 onWakeWordDetected(command)
                 return true
             }
@@ -180,18 +210,21 @@ class WakeWordDetector(
         override fun onBufferReceived(buffer: ByteArray?) {}
 
         override fun onEndOfSpeech() {
-            // Speech segment finished, will restart in onResults or onError
+            // Speech chunk ended, awaiting results
         }
 
         override fun onError(error: Int) {
-            Log.d(TAG, "SpeechRecognizer error code: $error")
+            Log.d(TAG, "SpeechRecognizer wake listener status code: $error")
             isListening = false
-            // Restart silently after brief delay to maintain continuous wake-word standby
-            val delay = if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                250L
-            } else {
-                1500L
+            
+            val delay = when (error) {
+                SpeechRecognizer.ERROR_NO_MATCH,
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> 150L
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 400L
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> 5000L
+                else -> 800L
             }
+            
             if (isEnabled) {
                 scheduleRestart(delay)
             }
@@ -200,15 +233,17 @@ class WakeWordDetector(
         override fun onResults(results: Bundle?) {
             isListening = false
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            var matched = false
             if (!matches.isNullOrEmpty()) {
                 for (match in matches) {
                     if (checkForWakeWord(match)) {
+                        matched = true
                         break
                     }
                 }
             }
-            if (isEnabled) {
-                scheduleRestart(250)
+            if (!matched && isEnabled) {
+                scheduleRestart(150)
             }
         }
 
@@ -217,8 +252,6 @@ class WakeWordDetector(
             if (!matches.isNullOrEmpty()) {
                 for (match in matches) {
                     if (checkForWakeWord(match)) {
-                        // Stop immediately once wake word is hit in partial
-                        destroyRecognizer()
                         break
                     }
                 }

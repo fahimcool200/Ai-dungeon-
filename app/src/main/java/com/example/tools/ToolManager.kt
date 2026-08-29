@@ -524,6 +524,39 @@ class ToolManager(
             return true
         }
 
+        if (cleanName.contains("calculator") || cleanName.contains("ক্যালকুলেটর")) {
+            val calcIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_APP_CALCULATOR)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                context.startActivity(calcIntent)
+                return true
+            } catch (e: Exception) {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=calculator")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                return true
+            }
+        }
+
+        if (cleanName.contains("map") || cleanName.contains("ম্যাপ")) {
+            val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=")).apply {
+                setPackage("com.google.android.apps.maps")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (mapIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(mapIntent)
+            } else {
+                val webMap = Intent(Intent.ACTION_VIEW, Uri.parse("https://maps.google.com")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(webMap)
+            }
+            return true
+        }
+
         if (cleanName.contains("setting") || cleanName.contains("সেটিং")) {
             val settingsIntent = Intent(Settings.ACTION_SETTINGS).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

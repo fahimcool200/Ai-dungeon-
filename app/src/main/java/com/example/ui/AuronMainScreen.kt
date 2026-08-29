@@ -52,6 +52,7 @@ import com.example.model.AssistantState
 import com.example.ui.components.AuronAvatar
 import com.example.ui.components.HUDQuickActions
 import com.example.ui.components.MicButton
+import com.example.ui.components.OnboardingTutorialDialog
 import com.example.ui.components.SettingsDrawer
 import com.example.ui.components.ToolExecutionBanner
 import com.example.ui.components.TopBar
@@ -77,9 +78,6 @@ fun AuronMainScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         viewModel.setMicPermissionGranted(isGranted)
-        if (isGranted) {
-            viewModel.startSession()
-        }
     }
 
     LaunchedEffect(Unit) {
@@ -88,6 +86,10 @@ fun AuronMainScreen(
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
         viewModel.setMicPermissionGranted(hasAudio)
+        if (!hasAudio) {
+            // Auto prompt for microphone on first startup
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     Scaffold(
@@ -137,7 +139,7 @@ fun AuronMainScreen(
                     onDismiss = { viewModel.dismissToolBanner() }
                 )
 
-                // Central Character Area (Nova Avatar & Real-Time HUD Subtitle)
+                // Central Character Area (Realistic 3D Talking Robot Head & Subtitle)
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -149,7 +151,14 @@ fun AuronMainScreen(
                         micAmplitude = uiState.micVolume,
                         speakerAmplitude = uiState.speakerVolume,
                         subtitle = uiState.subtitleText,
-                        language = uiState.config.language
+                        language = uiState.config.language,
+                        onAvatarClick = {
+                            if (!uiState.hasMicPermission) {
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            } else {
+                                viewModel.toggleSession()
+                            }
+                        }
                     )
                 }
 
@@ -255,6 +264,23 @@ fun AuronMainScreen(
                 }
             }
 
+            // Onboarding & Permission Tutorial Dialog
+            if (uiState.showOnboardingTutorial) {
+                OnboardingTutorialDialog(
+                    language = uiState.config.language,
+                    hasMicPermission = uiState.hasMicPermission,
+                    onRequestMicPermission = {
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    onVoiceEnrollmentComplete = { voiceName ->
+                        viewModel.enrollUserVoice(voiceName)
+                    },
+                    onFinishTutorial = {
+                        viewModel.completeOnboardingTutorial()
+                    }
+                )
+            }
+
             // Settings Bottom Drawer
             if (uiState.isDrawerOpen) {
                 SettingsDrawer(
@@ -267,11 +293,17 @@ fun AuronMainScreen(
                     onRequestMicPermission = {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
+                    onTestVoice = { sampleText ->
+                        viewModel.testNovaVoice(sampleText)
+                    },
                     onAddCustomRule = { rule ->
                         viewModel.addCustomTrainingRule(rule)
                     },
                     onRemoveCustomRule = { id ->
                         viewModel.removeCustomTrainingRule(id)
+                    },
+                    onRestartTutorial = {
+                        viewModel.restartTutorial()
                     },
                     onDismiss = {
                         viewModel.toggleDrawer(false)

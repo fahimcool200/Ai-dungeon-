@@ -21,16 +21,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -59,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -70,6 +78,7 @@ import com.example.model.CustomTrainingRule
 import com.example.ui.theme.Blue400
 import com.example.ui.theme.Blue500
 import com.example.ui.theme.Blue600
+import com.example.ui.theme.Cyan400
 import com.example.ui.theme.GlassBackground
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.Indigo600
@@ -93,8 +102,10 @@ fun SettingsDrawer(
     latencyMs: Long,
     onConfigChange: (AuronConfig) -> Unit,
     onRequestMicPermission: () -> Unit,
+    onTestVoice: (text: String) -> Unit = {},
     onAddCustomRule: (CustomTrainingRule) -> Unit = {},
     onRemoveCustomRule: (String) -> Unit = {},
+    onRestartTutorial: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -105,6 +116,8 @@ fun SettingsDrawer(
     var newActionType by remember { mutableStateOf("OPEN_APP") }
     var newActionParam by remember { mutableStateOf("youtube") }
     var newCustomReply by remember { mutableStateOf("") }
+    var showPlayProtectInfo by remember { mutableStateOf(false) }
+    var showVoiceTrainingSuccess by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -116,11 +129,11 @@ fun SettingsDrawer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.92f)
+                .fillMaxHeight(0.94f)
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Top App Bar
+            // Header Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -132,17 +145,17 @@ fun SettingsDrawer(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .background(GlassBackground)
-                            .border(1.dp, GlassBorder, CircleShape),
+                            .border(1.dp, Cyan400.copy(alpha = 0.5f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = null,
-                            tint = Blue400,
-                            modifier = Modifier.size(20.dp)
+                            tint = Cyan400,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                     Column {
@@ -154,7 +167,7 @@ fun SettingsDrawer(
                             letterSpacing = 0.5.sp
                         )
                         Text(
-                            text = if (isBengali) "ভয়েস, ভাষা, ও কাস্টম অ্যাকশন সেটিংস" else "Voice, Language, Wake Word & Training",
+                            text = if (isBengali) "ভয়েস, ট্রেইনিং ও অটোমেশন নিয়ন্ত্রণ" else "Voice, Training & Automation",
                             fontSize = 11.sp,
                             color = Slate400
                         )
@@ -179,7 +192,7 @@ fun SettingsDrawer(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             // 1. Language Selection (বাংলা / English / हिंदी)
             SettingsSectionHeader(
@@ -189,7 +202,7 @@ fun SettingsDrawer(
             SettingsCard {
                 Text(
                     text = if (isBengali) "আপনার পছন্দের ভাষা নির্বাচন করুন:" else "Select Primary Assistant Language:",
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Slate100
                 )
@@ -205,7 +218,7 @@ fun SettingsDrawer(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (selected) Blue600 else SleekElevated)
-                                .border(1.dp, if (selected) Blue400 else GlassBorder, RoundedCornerShape(12.dp))
+                                .border(1.dp, if (selected) Cyan400 else GlassBorder, RoundedCornerShape(12.dp))
                                 .clickable { onConfigChange(config.copy(language = lang)) }
                                 .padding(vertical = 10.dp, horizontal = 4.dp),
                             contentAlignment = Alignment.Center
@@ -228,9 +241,9 @@ fun SettingsDrawer(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Wake Word ("Hello Nova") & Hands-Free
+            // 2. Hands-Free Wake Word ("Hello Nova")
             SettingsSectionHeader(
                 title = if (isBengali) "হ্যান্ডস-ফ্রি ওয়েক ওয়ার্ড (\"Hello Nova\")" else "HANDS-FREE WAKE WORD",
                 icon = Icons.Default.Hearing
@@ -243,16 +256,16 @@ fun SettingsDrawer(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isBengali) "\"Hello Nova\" ওয়েক ওয়ার্ড ডিটেকশন" else "Continuous Wake Word Listening",
+                            text = if (isBengali) "\"Hello Nova\" ওয়েক ওয়ার্ড শোনা" else "Continuous Wake Word Listening",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Slate100
                         )
                         Text(
                             text = if (isBengali)
-                                "মাইকে হাত না দিয়ে 'Hello Nova' বা 'হ্যালো নোভা' বললে স্বয়ংক্রিয়ভাবে কথা শুরু হবে।"
+                                "স্ক্রিনে হাত না দিয়ে 'Hello Nova' বা 'হ্যালো নোভা' বললে স্বয়ংক্রিয়ভাবে কথা শুনবে।"
                             else
-                                "Say 'Hello Nova' anytime to trigger voice actions without tapping microphone.",
+                                "Say 'Hello Nova' anytime to trigger voice actions without tapping screen.",
                             fontSize = 11.sp,
                             color = Slate400
                         )
@@ -262,7 +275,7 @@ fun SettingsDrawer(
                         onCheckedChange = { onConfigChange(config.copy(wakeWordEnabled = it)) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = Blue500,
+                            checkedTrackColor = Cyan400,
                             uncheckedThumbColor = Slate400,
                             uncheckedTrackColor = SleekElevated
                         ),
@@ -271,10 +284,10 @@ fun SettingsDrawer(
                 }
 
                 if (config.wakeWordEnabled) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = if (isBengali) "ওয়েক ওয়ার্ড সংবেদনশীলতা: ${(config.wakeWordSensitivity * 100).toInt()}%" else "Wake Sensitivity: ${(config.wakeWordSensitivity * 100).toInt()}%",
-                        fontSize = 12.sp,
+                        text = if (isBengali) "সংবেদনশীলতা: ${(config.wakeWordSensitivity * 100).toInt()}%" else "Sensitivity: ${(config.wakeWordSensitivity * 100).toInt()}%",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = Slate300
                     )
@@ -283,17 +296,153 @@ fun SettingsDrawer(
                         onValueChange = { onConfigChange(config.copy(wakeWordSensitivity = it)) },
                         valueRange = 0.2f..1f,
                         colors = SliderDefaults.colors(
-                            thumbColor = Blue400,
-                            activeTrackColor = Blue500,
+                            thumbColor = Cyan400,
+                            activeTrackColor = Cyan400,
                             inactiveTrackColor = SleekElevated
                         )
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. Theme Selection
+            // 3. User Voice Profile & Training (আপনার ভয়েস ট্রেইনিং)
+            SettingsSectionHeader(
+                title = if (isBengali) "ইউজারের ভয়েস ট্রেইনিং (Voice Profile)" else "USER VOICE TRAINING",
+                icon = Icons.Default.RecordVoiceOver
+            )
+            SettingsCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBengali) "আপনার কণ্ঠস্বর ট্রেইনিং স্ট্যাটাস" else "Enrolled Voice Status",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Slate100
+                        )
+                        Text(
+                            text = if (config.isVoiceEnrolled)
+                                (if (isBengali) "✓ আপনার ভয়েস প্রোফাইল সক্রিয় আছে" else "✓ Voice profile active")
+                            else
+                                (if (isBengali) "এখনই আপনার গলার ভয়েস রেকর্ড করুন" else "Train Nova with your voice"),
+                            fontSize = 11.sp,
+                            color = if (config.isVoiceEnrolled) SleekMint else Slate400
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = {
+                        showVoiceTrainingSuccess = true
+                        onConfigChange(config.copy(isVoiceEnrolled = true))
+                        val speech = if (isBengali) "আপনার ভয়েস সফলভাবে ট্রেইনিং সম্পন্ন হয়েছে।" else "Your voice profile has been trained successfully."
+                        onTestVoice(speech)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (config.isVoiceEnrolled) SleekMint else Blue600),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("retrain_voice_button")
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isBengali) "ভয়েস রেকর্ড / পুনরায় ট্রেইনিং করুন" else "Record / Re-train Voice Profile",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                if (showVoiceTrainingSuccess) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (isBengali) "✓ ভয়েস প্রোফাইল আপডেট করা হয়েছে!" else "✓ Voice Profile Saved!",
+                        color = SleekMint,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 4. Voice Pitch & Speech Rate
+            SettingsSectionHeader(
+                title = if (isBengali) "রোবট ভয়েস স্পিড ও পিচ (Speech Rate)" else "VOICE PITCH & SPEED",
+                icon = Icons.AutoMirrored.Filled.VolumeUp
+            )
+            SettingsCard {
+                // Pitch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = if (isBengali) "ভয়েস পিচ (Pitch):" else "Pitch:", fontSize = 12.sp, color = Slate300)
+                    Text(text = String.format("%.2fx", config.pitch), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Cyan400)
+                }
+                Slider(
+                    value = config.pitch,
+                    onValueChange = { onConfigChange(config.copy(pitch = it)) },
+                    valueRange = 0.6f..1.4f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Cyan400,
+                        activeTrackColor = Cyan400,
+                        inactiveTrackColor = SleekElevated
+                    )
+                )
+
+                // Speech Rate
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = if (isBengali) "কথা বলার গতি (Speed Rate):" else "Speech Rate:", fontSize = 12.sp, color = Slate300)
+                    Text(text = String.format("%.2fx", config.speechRate), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Cyan400)
+                }
+                Slider(
+                    value = config.speechRate,
+                    onValueChange = { onConfigChange(config.copy(speechRate = it)) },
+                    valueRange = 0.7f..1.5f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Cyan400,
+                        activeTrackColor = Cyan400,
+                        inactiveTrackColor = SleekElevated
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Test Voice Button
+                Button(
+                    onClick = {
+                        val testText = if (isBengali) "হ্যালো! আমি নোভা এআই রোবট। আপনার কি সেবা করতে পারি?" else "Hello! I am Nova AI robot. How can I help you today?"
+                        onTestVoice(testText)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SleekElevated),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("test_voice_button")
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Cyan400, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isBengali) "ভয়েস টেস্ট শুনুন (Voice Preview)" else "Test Nova Voice Audio",
+                        fontSize = 12.sp,
+                        color = Slate100,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 5. App Theme Selection
             SettingsSectionHeader(
                 title = if (isBengali) "অ্যাপ থিম (Theme)" else "APP THEME",
                 icon = Icons.Default.DarkMode
@@ -310,7 +459,7 @@ fun SettingsDrawer(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (selected) Indigo600 else SleekElevated)
-                                .border(1.dp, if (selected) Blue400 else GlassBorder, RoundedCornerShape(10.dp))
+                                .border(1.dp, if (selected) Cyan400 else GlassBorder, RoundedCornerShape(10.dp))
                                 .clickable { onConfigChange(config.copy(themeMode = mode)) }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
@@ -330,9 +479,9 @@ fun SettingsDrawer(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 4. Custom Training Rules (Teach Nova)
+            // 6. Custom Action Training Rules (Teach Nova)
             SettingsSectionHeader(
                 title = if (isBengali) "নোভাকে কাজ শেখান (Custom Training)" else "TEACH NOVA CUSTOM RULES",
                 icon = Icons.Default.School
@@ -373,7 +522,7 @@ fun SettingsDrawer(
                                     text = "\"${rule.triggerPhrase}\"",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Blue400
+                                    color = Cyan400
                                 )
                                 Text(
                                     text = "অ্যাকশন: ${rule.actionType} (${rule.actionParam})",
@@ -396,7 +545,7 @@ fun SettingsDrawer(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Add rule section
                 if (!showAddRuleDialog) {
@@ -405,7 +554,7 @@ fun SettingsDrawer(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(GlassBackground)
-                            .border(1.dp, Blue500.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .border(1.dp, Cyan400.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
                             .clickable { showAddRuleDialog = true }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
@@ -414,12 +563,12 @@ fun SettingsDrawer(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Blue400, modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Cyan400, modifier = Modifier.size(16.dp))
                             Text(
                                 text = if (isBengali) "+ নতুন কমান্ড শেখান" else "+ Add New Training Rule",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Blue400
+                                color = Cyan400
                             )
                         }
                     }
@@ -439,7 +588,7 @@ fun SettingsDrawer(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Blue400,
+                                focusedBorderColor = Cyan400,
                                 unfocusedBorderColor = Slate700,
                                 focusedTextColor = Slate100,
                                 unfocusedTextColor = Slate100
@@ -449,278 +598,134 @@ fun SettingsDrawer(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(text = if (isBengali) "অ্যাকশনের ধরন (Action Type):" else "Action Type:", fontSize = 11.sp, color = Slate300)
                         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("OPEN_APP" to "App", "PHONE_CALL" to "Call", "DOWNLOAD_HELPER" to "Downloader").forEach { (type, label) ->
-                                val sel = newActionType == type
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (sel) Blue600 else SleekSurface)
-                                        .clickable {
-                                            newActionType = type
-                                            if (type == "OPEN_APP") newActionParam = "youtube"
-                                            if (type == "PHONE_CALL") newActionParam = ""
-                                            if (type == "DOWNLOAD_HELPER") newActionParam = "general"
-                                        }
-                                        .padding(vertical = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(text = label, fontSize = 11.sp, color = if (sel) Color.White else Slate400)
-                                }
+                            listOf("OPEN_APP" to "অ্যাপ খুলুন", "OPEN_URL" to "ওয়েবসাইট", "DOWNLOAD_HELPER" to "ভিডিও ডাউনলোড").forEach { (type, label) ->
+                                val selected = newActionType == type
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { newActionType = type },
+                                    label = { Text(label, fontSize = 10.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Cyan400,
+                                        selectedLabelColor = Color.Black
+                                    )
+                                )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (newActionType == "OPEN_APP") (if (isBengali) "অ্যাপের নাম (যেমন: youtube, facebook):" else "App Name:")
-                            else if (newActionType == "PHONE_CALL") (if (isBengali) "ফোন নম্বর:" else "Phone Number:")
-                            else (if (isBengali) "প্ল্যাটফর্ম (facebook / youtube):" else "Platform:"),
-                            fontSize = 11.sp,
-                            color = Slate300
-                        )
+                        Text(text = if (isBengali) "প্যারামিটার (App / URL / Phone):" else "Parameter:", fontSize = 11.sp, color = Slate300)
                         OutlinedTextField(
                             value = newActionParam,
                             onValueChange = { newActionParam = it },
+                            placeholder = { Text("youtube, facebook, https://...", fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Blue400,
+                                focusedBorderColor = Cyan400,
                                 unfocusedBorderColor = Slate700,
                                 focusedTextColor = Slate100,
                                 unfocusedTextColor = Slate100
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = if (isBengali) "সহকারীর উত্তর (Custom Reply):" else "Assistant Reply:", fontSize = 11.sp, color = Slate300)
-                        OutlinedTextField(
-                            value = newCustomReply,
-                            onValueChange = { newCustomReply = it },
-                            placeholder = { Text(if (isBengali) "যেমন: আপনার নির্দেশ সম্পন্ন করছি।" else "Optional spoken reply", fontSize = 12.sp) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Blue400,
-                                unfocusedBorderColor = Slate700,
-                                focusedTextColor = Slate100,
-                                unfocusedTextColor = Slate100
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             Button(
                                 onClick = { showAddRuleDialog = false },
-                                colors = ButtonDefaults.buttonColors(containerColor = Slate800),
-                                modifier = Modifier.padding(end = 8.dp)
+                                colors = ButtonDefaults.buttonColors(containerColor = Slate700),
+                                shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text(text = if (isBengali) "বাতিল" else "Cancel", fontSize = 11.sp)
+                                Text(if (isBengali) "বাতিল" else "Cancel", fontSize = 11.sp)
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Button(
                                 onClick = {
                                     if (newTrigger.isNotBlank()) {
-                                        val newRule = CustomTrainingRule(
-                                            id = UUID.randomUUID().toString(),
-                                            triggerPhrase = newTrigger.trim(),
-                                            actionType = newActionType,
-                                            actionParam = newActionParam.trim(),
-                                            customReply = newCustomReply.trim()
+                                        onAddCustomRule(
+                                            CustomTrainingRule(
+                                                triggerPhrase = newTrigger.trim(),
+                                                actionType = newActionType,
+                                                actionParam = newActionParam.trim(),
+                                                customReply = newCustomReply.trim()
+                                            )
                                         )
-                                        onAddCustomRule(newRule)
                                         newTrigger = ""
-                                        newCustomReply = ""
                                         showAddRuleDialog = false
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Blue600)
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan400),
+                                shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text(text = if (isBengali) "সংরক্ষণ করুন" else "Save Rule", fontSize = 11.sp)
+                                Text(if (isBengali) "সংরক্ষণ করুন" else "Save Rule", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 5. Persona & Voice Tuning
+            // 7. Play Protect & APK Installation Guide
             SettingsSectionHeader(
-                title = if (isBengali) "পারসোনালিটি ও সুর (Persona Tuning)" else "AI PERSONA & CHARACTER",
-                icon = Icons.Default.Psychology
+                title = if (isBengali) "প্লে প্রোটেক্ট ওয়ার্নিং সাহায্য (Play Protect)" else "GOOGLE PLAY PROTECT HELP",
+                icon = Icons.Default.Security
             )
             SettingsCard {
                 Text(
-                    text = if (isBengali) "রসবোধ ও স্মার্টনেস: ${(config.wittiness * 100).toInt()}%" else "Wittiness & Humor: ${(config.wittiness * 100).toInt()}%",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Slate100
+                    text = if (isBengali)
+                        "গুগল প্লে স্টোর ছাড়া যেকোনো এপিকে ইনস্টল করার সময় অ্যান্ড্রয়েড Play Protect সতর্কতা দেখায়। এটি বন্ধ করতে:"
+                    else
+                        "When sideloading APKs, Play Protect shows an unverified developer prompt. How to install smoothly:",
+                    fontSize = 11.sp,
+                    color = Slate300
                 )
-                Slider(
-                    value = config.wittiness,
-                    onValueChange = { onConfigChange(config.copy(wittiness = it)) },
-                    valueRange = 0f..1f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Blue400,
-                        activeTrackColor = Blue500,
-                        inactiveTrackColor = SleekElevated
-                    )
-                )
+                Spacer(modifier = Modifier.height(6.dp))
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SleekElevated)
+                        .padding(10.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isBengali) "সংক্ষিপ্ত ও দ্রুত উত্তর (Concise Mode)" else "Voice-First Conciseness",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Slate100
-                        )
-                        Text(
-                            text = if (isBengali) "অতিরিক্ত কথা না বলে ১-২ বাক্যে সরাসরি উত্তর।" else "Short, punchy 1-2 sentence voice answers.",
-                            fontSize = 11.sp,
-                            color = Slate400
-                        )
-                    }
-                    Switch(
-                        checked = config.conciseMode,
-                        onCheckedChange = { onConfigChange(config.copy(conciseMode = it)) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Blue500,
-                            uncheckedThumbColor = Slate400,
-                            uncheckedTrackColor = SleekElevated
-                        )
+                    Text(
+                        text = if (isBengali)
+                            "১. ইনস্টল বক্সে 'More details' (আরও বিবরণ) বাটনে চাপ দিন।\n২. তারপর 'Install anyway' (যেভাবেই হোক ইনস্টল করুন) চাপুন।"
+                        else
+                            "1. Tap 'More details' on the installation dialog.\n2. Tap 'Install anyway' to complete APK setup.",
+                        fontSize = 11.sp,
+                        color = Cyan400,
+                        lineHeight = 18.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 6. Audio & Hardware Controls
+            // 8. Restart Tutorial & Help
             SettingsSectionHeader(
-                title = if (isBengali) "অডিও ও সাউন্ড সেটিংস" else "AUDIO & SOUND HARDWARE",
-                icon = Icons.Default.GraphicEq
+                title = if (isBengali) "টিউটোরিয়াল ও সাহায্য" else "TUTORIAL & HELP",
+                icon = Icons.Default.HelpOutline
             )
             SettingsCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Button(
+                    onClick = {
+                        onDismiss()
+                        onRestartTutorial()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SleekElevated),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("restart_tutorial_button")
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isBengali) "মাইক্রোফোন পারমিশন" else "Microphone Permission",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Slate100
-                        )
-                        Text(
-                            text = if (hasMicPermission) (if (isBengali) "সক্রিয় রয়েছে · PCM 16kHz" else "Active · PCM 16kHz") else (if (isBengali) "কথা বলার জন্য পারমিশন দিন" else "Permission required"),
-                            fontSize = 11.sp,
-                            color = if (hasMicPermission) SleekMint else Slate400
-                        )
-                    }
-                    if (!hasMicPermission) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Blue600)
-                                .clickable { onRequestMicPermission() }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = if (isBengali) "অনুমতি দিন" else "Grant",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isBengali) "ইকো ক্যান্সেলেশন (AEC)" else "Acoustic Echo Cancellation",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Slate100
-                        )
-                        Text(
-                            text = if (isBengali) "স্পিকারের সাউন্ড যাতে মাইকে ফেরত না আসে।" else "Prevents speaker echo.",
-                            fontSize = 11.sp,
-                            color = Slate400
-                        )
-                    }
-                    Switch(
-                        checked = config.echoCancellation,
-                        onCheckedChange = { onConfigChange(config.copy(echoCancellation = it)) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Blue500,
-                            uncheckedThumbColor = Slate400,
-                            uncheckedTrackColor = SleekElevated
-                        )
+                    Icon(Icons.Default.HelpOutline, contentDescription = null, tint = Cyan400)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isBengali) "টিউটোরিয়াল পুনরায় দেখুন" else "Re-open Setup Tutorial",
+                        fontSize = 12.sp,
+                        color = Slate100,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isBengali) "নয়েজ সাপ্রেশন (Noise Reduction)" else "Hardware Noise Suppressor",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Slate100
-                        )
-                        Text(
-                            text = if (isBengali) "আশেপাশের কোলাহল কমানো।" else "Reduces ambient noise.",
-                            fontSize = 11.sp,
-                            color = Slate400
-                        )
-                    }
-                    Switch(
-                        checked = config.noiseSuppression,
-                        onCheckedChange = { onConfigChange(config.copy(noiseSuppression = it)) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Blue500,
-                            uncheckedThumbColor = Slate400,
-                            uncheckedTrackColor = SleekElevated
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // 7. System Info & Engine Status
-            SettingsSectionHeader(
-                title = if (isBengali) "সিস্টেম ও ইঞ্জিন তথ্য" else "SYSTEM & ENGINE INFO",
-                icon = Icons.Default.Info
-            )
-            SettingsCard {
-                DetailRow(label = "Assistant Name", value = "Nova AI (নোভা এআই)")
-                DetailRow(label = "Wake Word", value = "Hello Nova / হ্যালো নোভা")
-                DetailRow(label = "Offline Mode", value = "Active & Ready")
-                DetailRow(label = "Automation Tools", value = "YouTube, Facebook, Phone, SMS, Downloader")
-                DetailRow(label = "Latency", value = if (latencyMs > 0) "$latencyMs ms" else "Real-time Ultra Low")
             }
 
             Spacer(modifier = Modifier.height(30.dp))
@@ -729,53 +734,27 @@ fun SettingsDrawer(
 }
 
 @Composable
-private fun SettingsSectionHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+fun SettingsSectionHeader(title: String, icon: ImageVector) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(bottom = 8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.padding(bottom = 6.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Blue400,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Blue400,
-            letterSpacing = 0.5.sp
-        )
+        Icon(imageVector = icon, contentDescription = null, tint = Cyan400, modifier = Modifier.size(16.dp))
+        Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Cyan400, letterSpacing = 0.5.sp)
     }
 }
 
 @Composable
-private fun SettingsCard(content: @Composable () -> Unit) {
+fun SettingsCard(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(SleekSurface)
-            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
-            .padding(16.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(GlassBackground)
+            .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+            .padding(14.dp)
     ) {
-        Column {
-            content()
-        }
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, fontSize = 12.sp, color = Slate400)
-        Text(text = value, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate100)
+        Column { content() }
     }
 }

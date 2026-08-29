@@ -31,13 +31,35 @@ class OfflineCommandProcessor(
             if (clean.contains(rule.triggerPhrase.lowercase().trim())) {
                 executeRuleAction(rule)
                 val reply = if (rule.customReply.isNotBlank()) rule.customReply else {
-                    if (isBengali) "আপনার শেখানো কমান্ড কার্যকর করা হয়েছে।" else "Executed custom learned command."
+                    if (isBengali) "আপনার শেখানো নিয়ম অনুযায়ী কাজ সম্পন্ন হয়েছে।" else "Executed custom learned command."
                 }
                 return@withContext OfflineExecutionResult(true, reply, rule.actionType)
             }
         }
 
-        // 2. YouTube
+        // 2. Play music / video on YouTube (e.g. "গান চালাও", "play music", "ইউটিউবে গান")
+        if (clean.contains("গান") || clean.contains("music") || clean.contains("song") || clean.contains("ভিডিও চালাও") || clean.contains("play ")) {
+            var searchSong = clean
+                .replace("গান চালাও", "")
+                .replace("গান শোনাও", "")
+                .replace("গান বাজাও", "")
+                .replace("ভিডিও চালাও", "")
+                .replace("play", "")
+                .replace("song", "")
+                .replace("music", "")
+                .replace("on youtube", "")
+                .replace("ইউটিউবে", "")
+                .replace("নোভা", "")
+                .trim()
+            if (searchSong.isEmpty()) {
+                searchSong = if (isBengali) "বাংলা জনপ্রিয় গান" else "popular trending music"
+            }
+            toolManager.executeTool("searchYouTube", JSONObject().put("query", searchSong))
+            val reply = if (isBengali) "ইউটিউবে '$searchSong' বাজাচ্ছি।" else "Playing '$searchSong' on YouTube."
+            return@withContext OfflineExecutionResult(true, reply, "searchYouTube")
+        }
+
+        // 3. YouTube App / Search
         if (clean.contains("youtube") || clean.contains("ইউটিউব")) {
             if (clean.contains("search") || clean.contains("সার্চ") || clean.contains("খুঁজ")) {
                 val searchQuery = clean.replace("youtube", "").replace("ইউটিউব", "").replace("search", "").replace("সার্চ", "").trim()
@@ -51,21 +73,21 @@ class OfflineCommandProcessor(
             }
         }
 
-        // 3. Facebook
+        // 4. Facebook
         if (clean.contains("facebook") || clean.contains("ফেসবুক") || clean.contains("fb")) {
             toolManager.launchNamedApp("facebook")
             val reply = if (isBengali) "ফেসবুক ওপেন করছি।" else "Opening Facebook for you."
             return@withContext OfflineExecutionResult(true, reply, "openApp")
         }
 
-        // 4. WhatsApp
+        // 5. WhatsApp
         if (clean.contains("whatsapp") || clean.contains("হোয়াটসঅ্যাপ") || clean.contains("হোয়াটসএপ")) {
             toolManager.launchNamedApp("whatsapp")
             val reply = if (isBengali) "হোয়াটসঅ্যাপ ওপেন করছি।" else "Opening WhatsApp."
             return@withContext OfflineExecutionResult(true, reply, "openApp")
         }
 
-        // 5. Video Downloader
+        // 6. Video Downloader
         if (clean.contains("download") || clean.contains("ডাউনলোড") || clean.contains("সেভ কর")) {
             val platform = when {
                 clean.contains("facebook") || clean.contains("ফেসবুক") -> "facebook"
@@ -74,13 +96,12 @@ class OfflineCommandProcessor(
                 else -> "general"
             }
             toolManager.executeTool("downloadVideoHelper", JSONObject().put("platform", platform))
-            val reply = if (isBengali) "ভিডিও ডাউনলোড হেল্পার ওপেন করা হয়েছে। লিংক পেস্ট করে ডাউনলোড করুন।" else "Opening video download helper tool."
+            val reply = if (isBengali) "ভিডিও ডাউনলোডার টুল ওপেন করা হয়েছে। লিংক পেস্ট করে ডাউনলোড করুন।" else "Opening video download helper."
             return@withContext OfflineExecutionResult(true, reply, "downloadVideoHelper")
         }
 
-        // 6. Phone Call
+        // 7. Phone Call / Dialing
         if (clean.contains("call") || clean.contains("ফোন") || clean.contains("ডায়াল") || clean.contains("ডায়াল")) {
-            // Extract potential phone digits
             val digits = clean.filter { it.isDigit() || it == '+' }
             val phoneNum = if (digits.length >= 3) digits else ""
             toolManager.executeTool("makePhoneCall", JSONObject().put("phoneNumber", phoneNum))
@@ -92,15 +113,15 @@ class OfflineCommandProcessor(
             return@withContext OfflineExecutionResult(true, reply, "makePhoneCall")
         }
 
-        // 7. Message / SMS
+        // 8. SMS / Messaging
         if (clean.contains("message") || clean.contains("মেসেজ") || clean.contains("sms") || clean.contains("এসএমএস")) {
             toolManager.executeTool("sendMessage", JSONObject().put("phoneNumber", "").put("message", ""))
-            val reply = if (isBengali) "মেসেজ পাঠানোর স্ক্রিন ওপেন করছি।" else "Opening messaging."
+            val reply = if (isBengali) "মেসেজ স্ক্রিন ওপেন করছি।" else "Opening messaging."
             return@withContext OfflineExecutionResult(true, reply, "sendMessage")
         }
 
-        // 8. Flashlight / Torch
-        if (clean.contains("flash") || clean.contains("torch") || clean.contains("লাইট") || clean.contains("ফ্ল্যাশ")) {
+        // 9. Flashlight / Torch
+        if (clean.contains("flash") || clean.contains("torch") || clean.contains("লাইট") || clean.contains("ফ্ল্যাশ") || clean.contains("টর্চ")) {
             val turnOn = !clean.contains("off") && !clean.contains("বন্ধ") && !clean.contains("নিভ")
             toolManager.executeTool("toggleFlashlight", JSONObject().put("state", turnOn))
             val reply = if (isBengali) {
@@ -111,7 +132,7 @@ class OfflineCommandProcessor(
             return@withContext OfflineExecutionResult(true, reply, "toggleFlashlight")
         }
 
-        // 9. Battery / Device Status
+        // 10. Battery / Device Status
         if (clean.contains("battery") || clean.contains("চার্জ") || clean.contains("ব্যাটারি") || clean.contains("চার্জ কত")) {
             val statusResult = toolManager.executeTool("getDeviceStatus", JSONObject())
             val level = statusResult.optString("batteryLevel", "unknown")
@@ -119,40 +140,65 @@ class OfflineCommandProcessor(
             val reply = if (isBengali) {
                 "আপনার ডিভাইসের ব্যাটারি চার্জ $level ${if (charging) "(চার্জ হচ্ছে)" else ""}।"
             } else {
-                "Your battery level is $level ${if (charging) "(currently charging)" else ""}."
+                "Your device battery is at $level ${if (charging) "(charging)" else ""}."
             }
             return@withContext OfflineExecutionResult(true, reply, "getDeviceStatus")
         }
 
-        // 10. Camera
-        if (clean.contains("camera") || clean.contains("ক্যামেরা") || clean.contains("ছবি তুলব")) {
+        // 11. Camera
+        if (clean.contains("camera") || clean.contains("ক্যামেরা") || clean.contains("ছবি তুলব") || clean.contains("ছবি তোল")) {
             toolManager.launchNamedApp("camera")
             val reply = if (isBengali) "ক্যামেরা ওপেন করছি।" else "Opening camera."
             return@withContext OfflineExecutionResult(true, reply, "openApp")
         }
 
-        // 11. Settings
-        if (clean.contains("setting") || clean.contains("সেটিংস") || clean.contains("সেটিং")) {
+        // 12. Calculator
+        if (clean.contains("calculator") || clean.contains("ক্যালকুলেটর") || clean.contains("হিসাব")) {
+            toolManager.launchNamedApp("calculator")
+            val reply = if (isBengali) "ক্যালকুলেটর ওপেন করছি।" else "Opening calculator."
+            return@withContext OfflineExecutionResult(true, reply, "openApp")
+        }
+
+        // 13. Clock / Alarm / Timer
+        if (clean.contains("alarm") || clean.contains("এলার্ম") || clean.contains("ঘড়ি") || clean.contains("clock") || clean.contains("timer") || clean.contains("টাইমার")) {
+            val seconds = if (clean.contains("মিনিট")) {
+                val num = clean.filter { it.isDigit() }.toIntOrNull() ?: 5
+                num * 60
+            } else 300
+            toolManager.executeTool("setTimer", JSONObject().put("seconds", seconds))
+            val reply = if (isBengali) "টাইমার ও ঘড়ি চালু করছি।" else "Starting timer and clock."
+            return@withContext OfflineExecutionResult(true, reply, "setTimer")
+        }
+
+        // 14. Maps / Google Maps
+        if (clean.contains("map") || clean.contains("ম্যাপ") || clean.contains("রাস্তা")) {
+            toolManager.launchNamedApp("maps")
+            val reply = if (isBengali) "গুগল ম্যাপস ওপেন করছি।" else "Opening Google Maps."
+            return@withContext OfflineExecutionResult(true, reply, "openApp")
+        }
+
+        // 15. Settings (WiFi, Bluetooth, Main Settings)
+        if (clean.contains("setting") || clean.contains("সেটিংস") || clean.contains("সেটিং") || clean.contains("ওয়াইফাই") || clean.contains("wifi") || clean.contains("ব্লুটুথ") || clean.contains("bluetooth")) {
             toolManager.launchNamedApp("settings")
             val reply = if (isBengali) "ডিভাইস সেটিংস ওপেন করছি।" else "Opening device settings."
             return@withContext OfflineExecutionResult(true, reply, "openApp")
         }
 
-        // 12. Identity / General query offline
+        // 16. Identity / Nova intro
         if (clean.contains("who are you") || clean.contains("কে তুমি") || clean.contains("তোমার নাম কি") || clean.contains("নাম কি")) {
             val reply = if (isBengali) {
-                "আমি নোভা এআই (Nova AI)। আমি অফলাইনে এবং অনলাইনে আপনার ভয়েস কমান্ড অনুযায়ী বিভিন্ন অ্যাপ চালানো ও কাজ করতে প্রস্তুত।"
+                "আমি নোভা এআই (Nova AI)। আইফোনের মতো সম্পূর্ণ হ্যান্ডস-ফ্রি ভয়েস অ্যাসিস্ট্যান্ট। আপনি মুখ দিয়ে যা বলবেন আমি তাই করব।"
             } else {
-                "I am Nova AI, your intelligent voice assistant capable of running commands both online and offline."
+                "I am Nova AI, your hands-free intelligent voice robot assistant. Speak any command and I will execute it."
             }
             return@withContext OfflineExecutionResult(true, reply, "identity")
         }
 
         // Default offline response
         val fallback = if (isBengali) {
-            "অফলাইন মোডে আছি। আপনি বলতে পারেন: 'ইউটিউব ওপেন কর', 'ফেসবুক ওপেন কর', 'ফোন দাও', 'ভিডিও ডাউনলোড', 'ব্যাটারি কত' ইত্যাদি।"
+            "অফলাইন মোড সক্রিয়। বলতে পারেন: 'গান চালাও', 'ইউটিউব ওপেন কর', 'ফেসবুক', 'ফোন দাও', 'ভিডিও ডাউনলোড', 'টর্চ অন কর', 'ব্যাটারি কত' ইত্যাদি।"
         } else {
-            "I'm in offline mode. You can say 'Open YouTube', 'Open Facebook', 'Make a Call', 'Download Video', or check battery."
+            "Offline mode active. You can say 'Play Music', 'Open YouTube', 'Open Facebook', 'Make a Call', 'Download Video', or 'Turn on Flashlight'."
         }
         return@withContext OfflineExecutionResult(false, fallback)
     }

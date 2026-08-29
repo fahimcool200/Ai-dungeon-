@@ -18,6 +18,7 @@ val Indigo700 = Color(0xFF4338CA)
 val Indigo900 = Color(0xFF1E1B4B)
 val IceBlue = Color(0xFFBFDBFE)
 val CyanAccent = Color(0xFF38BDF8)
+val Cyan400 = Color(0xFF22D3EE)
 val SleekMint = Color(0xFF34D399)
 
 val SleekGold = Color(0xFFFBBF24)

@@ -45,7 +45,7 @@ data class AuronConfig(
     val language: AssistantLanguage = AssistantLanguage.BENGALI,
     val themeMode: AppThemeMode = AppThemeMode.DARK,
     val wakeWordEnabled: Boolean = true,
-    val wakeWordSensitivity: Float = 0.8f,
+    val wakeWordSensitivity: Float = 0.85f,
     val offlineVoiceEnabled: Boolean = true,
     val wittiness: Float = 0.85f,
     val energyLevel: Float = 0.8f,
@@ -57,6 +57,9 @@ data class AuronConfig(
     val interruptSensitivity: Float = 0.5f,
     val pitch: Float = 1.0f,
     val speechRate: Float = 1.0f,
+    val isVoiceEnrolled: Boolean = false,
+    val userVoiceName: String = "User",
+    val onboardingCompleted: Boolean = false,
     val customRules: List<CustomTrainingRule> = listOf(
         CustomTrainingRule(
             triggerPhrase = "ইউটিউব ওপেন কর",

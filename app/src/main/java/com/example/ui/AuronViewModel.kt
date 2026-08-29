@@ -35,7 +35,7 @@ data class AuronUiState(
     val speakerVolume: Float = 0f,
     val visualizerBars: List<Float> = List(24) { 0.05f },
     val statusText: String = "কথা বলতে ট্যাপ করুন",
-    val subtitleText: String = "নোভা প্রস্তুত। \"Hello Nova\" বলুন অথবা কথা বলতে মাইকে চাপ দিন।",
+    val subtitleText: String = "নোভা প্রস্তুত। \"Hello Nova\" বলুন অথবা কথা বলুন।",
     val errorMessage: String? = null,
     val latencyMs: Long = 0L,
     val config: AuronConfig = AuronConfig(),
@@ -44,12 +44,20 @@ data class AuronUiState(
     val latestToolEvent: ToolExecutionEvent? = null,
     val sessionDurationSeconds: Long = 0L,
     val isDrawerOpen: Boolean = false,
-    val isWakeWordListening: Boolean = true
+    val isWakeWordListening: Boolean = true,
+    val showOnboardingTutorial: Boolean = false
 )
 
 class AuronViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _uiState = MutableStateFlow(AuronUiState())
+    private val prefs = application.getSharedPreferences("nova_ai_prefs", Context.MODE_PRIVATE)
+
+    private val _uiState = MutableStateFlow(
+        AuronUiState(
+            config = loadConfigFromPrefs(),
+            showOnboardingTutorial = !prefs.getBoolean("onboarding_completed", false)
+        )
+    )
     val uiState: StateFlow<AuronUiState> = _uiState.asStateFlow()
 
     private val toolManager = ToolManager(application) { event ->
@@ -132,8 +140,39 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
     init {
         audioPlayer.setLanguage(_uiState.value.config.language)
         wakeWordDetector.setLanguage(_uiState.value.config.language)
+        wakeWordDetector.setSensitivity(_uiState.value.config.wakeWordSensitivity)
         startVisualizerLoop()
         observeAudioAmplitudes()
+    }
+
+    private fun loadConfigFromPrefs(): AuronConfig {
+        val langCode = prefs.getString("cfg_language", AssistantLanguage.BENGALI.name) ?: AssistantLanguage.BENGALI.name
+        val lang = try { AssistantLanguage.valueOf(langCode) } catch (e: Exception) { AssistantLanguage.BENGALI }
+        val wakeEnabled = prefs.getBoolean("cfg_wake_enabled", true)
+        val wakeSens = prefs.getFloat("cfg_wake_sens", 0.85f)
+        val pitch = prefs.getFloat("cfg_pitch", 1.0f)
+        val speechRate = prefs.getFloat("cfg_rate", 1.0f)
+        val isVoiceEnrolled = prefs.getBoolean("cfg_voice_enrolled", false)
+
+        return AuronConfig(
+            language = lang,
+            wakeWordEnabled = wakeEnabled,
+            wakeWordSensitivity = wakeSens,
+            pitch = pitch,
+            speechRate = speechRate,
+            isVoiceEnrolled = isVoiceEnrolled
+        )
+    }
+
+    private fun saveConfigToPrefs(config: AuronConfig) {
+        prefs.edit()
+            .putString("cfg_language", config.language.name)
+            .putBoolean("cfg_wake_enabled", config.wakeWordEnabled)
+            .putFloat("cfg_wake_sens", config.wakeWordSensitivity)
+            .putFloat("cfg_pitch", config.pitch)
+            .putFloat("cfg_rate", config.speechRate)
+            .putBoolean("cfg_voice_enrolled", config.isVoiceEnrolled)
+            .apply()
     }
 
     private fun observeAudioAmplitudes() {
@@ -160,8 +199,8 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
                 val speakerVol = _uiState.value.speakerVolume
 
                 val primaryAmp = when (state) {
-                    AssistantState.SPEAKING -> speakerVol.coerceAtLeast(0.2f)
-                    AssistantState.LISTENING -> micVol.coerceAtLeast(0.08f)
+                    AssistantState.SPEAKING -> speakerVol.coerceAtLeast(0.25f)
+                    AssistantState.LISTENING -> micVol.coerceAtLeast(0.1f)
                     AssistantState.THINKING -> 0.4f
                     AssistantState.CONNECTING -> 0.25f
                     else -> if (_uiState.value.isWakeWordListening) 0.08f else 0.03f
@@ -189,6 +228,23 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun completeOnboardingTutorial() {
+        prefs.edit().putBoolean("onboarding_completed", true).apply()
+        _uiState.update { it.copy(showOnboardingTutorial = false) }
+        if (_uiState.value.hasMicPermission && _uiState.value.config.wakeWordEnabled) {
+            wakeWordDetector.start()
+        }
+    }
+
+    fun restartTutorial() {
+        _uiState.update { it.copy(showOnboardingTutorial = true, isDrawerOpen = false) }
+    }
+
+    fun enrollUserVoice(voiceName: String) {
+        val updated = _uiState.value.config.copy(isVoiceEnrolled = true, userVoiceName = voiceName)
+        updateConfig(updated)
+    }
+
     private fun onWakeWordTriggered(command: String) {
         viewModelScope.launch(Dispatchers.Main) {
             val isBengali = _uiState.value.config.language == AssistantLanguage.BENGALI
@@ -209,7 +265,11 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
                             state = AssistantState.SPEAKING
                         )
                     }
-                    audioPlayer.speakText(offlineResult.responseText)
+                    audioPlayer.speakText(
+                        text = offlineResult.responseText,
+                        pitch = _uiState.value.config.pitch,
+                        speechRate = _uiState.value.config.speechRate
+                    )
                 } else {
                     sendQuickVoicePrompt(prompt)
                 }
@@ -222,7 +282,11 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
                         state = AssistantState.SPEAKING
                     )
                 }
-                audioPlayer.speakText(greeting)
+                audioPlayer.speakText(
+                    text = greeting,
+                    pitch = _uiState.value.config.pitch,
+                    speechRate = _uiState.value.config.speechRate
+                )
                 if (_uiState.value.hasMicPermission) {
                     startSession()
                 }
@@ -305,7 +369,7 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
 
-            // Check if device is offline or handle immediately locally
+            // Check if command can be handled offline locally
             val offlineRes = offlineProcessor.processCommand(prompt, _uiState.value.config)
             if (offlineRes.handled) {
                 _uiState.update {
@@ -314,7 +378,11 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
                         state = AssistantState.SPEAKING
                     )
                 }
-                audioPlayer.speakText(offlineRes.responseText)
+                audioPlayer.speakText(
+                    text = offlineRes.responseText,
+                    pitch = _uiState.value.config.pitch,
+                    speechRate = _uiState.value.config.speechRate
+                )
             } else {
                 if (_uiState.value.state == AssistantState.DISCONNECTED) {
                     startSession()
@@ -324,11 +392,21 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun testNovaVoice(sampleText: String) {
+        audioPlayer.speakText(
+            text = sampleText,
+            pitch = _uiState.value.config.pitch,
+            speechRate = _uiState.value.config.speechRate
+        )
+    }
+
     fun updateConfig(newConfig: AuronConfig) {
         _uiState.update { it.copy(config = newConfig) }
+        saveConfigToPrefs(newConfig)
         liveSession.updateConfig(newConfig)
         audioPlayer.setLanguage(newConfig.language)
         wakeWordDetector.setLanguage(newConfig.language)
+        wakeWordDetector.setSensitivity(newConfig.wakeWordSensitivity)
         wakeWordDetector.setEnabled(newConfig.wakeWordEnabled)
     }
 
@@ -388,4 +466,3 @@ class AuronViewModel(application: Application) : AndroidViewModel(application) {
         sessionTimerJob?.cancel()
     }
 }
-
